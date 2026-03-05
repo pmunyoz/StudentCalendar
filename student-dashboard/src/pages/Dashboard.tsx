@@ -1,14 +1,17 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { CheckCircle2, CalendarDays, TrendingUp } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 
 /**
  * Página principal del Dashboard (Resumen)
  */
 export default function DashboardPage() {
+    const { userName } = useAuth();
+
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500">
             <header className="mb-8">
-                <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Hola, John 👋</h1>
+                <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Hola, {userName} 👋</h1>
                 <p className="text-slate-500 mt-1">Aquí tienes un resumen de tu actividad académica.</p>
             </header>
 

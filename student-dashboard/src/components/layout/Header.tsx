@@ -1,10 +1,21 @@
-import { Bell, Search, User } from "lucide-react";
-import { Link } from "react-router-dom";
+import { useState } from "react";
+import { Bell, Search, User, Settings, LogOut } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 
 /**
  * Cabecera superior del Dashboard
  */
 export default function Header() {
+    const { userName, avatarUrl, signOut } = useAuth();
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const navigate = useNavigate();
+
+    const handleSignOut = async () => {
+        await signOut();
+        navigate("/login");
+    };
+
     return (
         <header className="h-16 px-6 bg-white border-b border-slate-200 flex items-center justify-between sticky top-0 z-10">
             <div className="flex items-center gap-4 flex-1">
@@ -32,14 +43,50 @@ export default function Header() {
 
                 <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
 
-                <Link to="/login" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
-                    <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm">
-                        <User size={16} />
-                    </div>
-                    <span className="text-sm font-medium text-slate-700 hidden sm:block">
-                        John Doe
-                    </span>
-                </Link>
+                <div className="relative">
+                    <button
+                        onClick={() => setIsMenuOpen(!isMenuOpen)}
+                        className="flex items-center gap-2 hover:opacity-80 transition-opacity outline-none"
+                    >
+                        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm overflow-hidden border border-slate-200">
+                            {avatarUrl ? (
+                                <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" />
+                            ) : (
+                                <User size={16} />
+                            )}
+                        </div>
+                        <span className="text-sm font-medium text-slate-700 hidden sm:block">
+                            {userName}
+                        </span>
+                    </button>
+
+                    {isMenuOpen && (
+                        <>
+                            <div
+                                className="fixed inset-0 z-10"
+                                onClick={() => setIsMenuOpen(false)}
+                            ></div>
+                            <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-100 py-1 z-20 animate-in fade-in zoom-in-95 duration-100">
+                                <Link
+                                    to="/dashboard/settings"
+                                    onClick={() => setIsMenuOpen(false)}
+                                    className="flex items-center gap-2 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                                >
+                                    <Settings size={16} className="text-slate-400" />
+                                    Configuración
+                                </Link>
+                                <hr className="my-1 border-slate-100" />
+                                <button
+                                    onClick={handleSignOut}
+                                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                >
+                                    <LogOut size={16} />
+                                    Cerrar sesión
+                                </button>
+                            </div>
+                        </>
+                    )}
+                </div>
             </div>
         </header>
     );
