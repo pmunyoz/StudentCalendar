@@ -14,7 +14,7 @@ export function SecurityHeaders() {
 
             {/* OWASP A03: Injection - Content Security Policy (modo lectura/UI por ahora) 
           Permite recursos del mismo origen y conexiones al backend de Supabase. */}
-            <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://ysyciivfxtdixktnkujl.supabase.co;" />
+            <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://fonts.gstatic.com; connect-src 'self' https://ysyciivfxtdixktnkujl.supabase.co; img-src 'self' data: https://ysyciivfxtdixktnkujl.supabase.co;" />
 
             {/* Sugiere la actualización de solicitudes inseguras (A02: Cryptographic Failures) */}
             <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests" />

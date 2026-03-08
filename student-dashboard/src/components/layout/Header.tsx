@@ -48,11 +48,11 @@ export default function Header() {
                         onClick={() => setIsMenuOpen(!isMenuOpen)}
                         className="flex items-center gap-2 hover:opacity-80 transition-opacity outline-none"
                     >
-                        <div className="w-8 h-8 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm overflow-hidden border border-slate-200">
+                        <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm overflow-hidden border border-slate-200 shadow-sm">
                             {avatarUrl ? (
                                 <img src={avatarUrl} alt={userName} className="w-full h-full object-cover" />
                             ) : (
-                                <User size={16} />
+                                <User size={20} />
                             )}
                         </div>
                         <span className="text-sm font-medium text-slate-700 hidden sm:block">

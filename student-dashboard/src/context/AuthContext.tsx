@@ -43,7 +43,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
                 .single();
 
             if (data && !error) {
-                setUserName(data.first_name);
+                if (data.first_name) setUserName(data.first_name);
+
                 // Añadir cache buster si existe URL para forzar actualización visual
                 const urlWithBuster = data.avatar_url
                     ? `${data.avatar_url.split('?')[0]}?t=${Date.now()}`
