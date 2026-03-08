@@ -4,7 +4,8 @@ import { useAuth } from "../context/AuthContext";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
-import { CheckCircle2, Circle, MoreVertical, Plus, BookOpen, Calendar, ClipboardList, Loader2, AtSign, Trash2, Edit3, X } from "lucide-react";
+import { ConfirmationModal } from "../components/ui/Modal";
+import { CheckCircle2, Circle, MoreVertical, Plus, BookOpen, Calendar, ClipboardList, Loader2, Trash2, Edit3, X } from "lucide-react";
 
 interface Subject {
     id: string;
@@ -55,10 +56,13 @@ export default function TasksPage() {
     const [newTaskTitle, setNewTaskTitle] = useState("");
     const [selectedSubjectId, setSelectedSubjectId] = useState<string>("");
     const [dueDate, setDueDate] = useState<string>("");
+    const [isAddingSubject, setIsAddingSubject] = useState(false);
+    const [newSubjectName, setNewSubjectName] = useState("");
+    const [newSubjectColor, setNewSubjectColor] = useState("blue");
+    const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+    const [filterSubjectId, setFilterSubjectId] = useState<string | null>(null);
 
-    // Mention System States
-    const [showMentions, setShowMentions] = useState(false);
-    const [mentionFilter, setMentionFilter] = useState("");
+    // Linked Item States
     const [selectedMention, setSelectedMention] = useState<Mentionable | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
@@ -94,10 +98,10 @@ export default function TasksPage() {
                 if (newSubs) setSubjects(newSubs);
             }
 
-            // 2. Fetch Exams and Exercises for mentions
+            // 2. Fetch Exams and Exercises for linking
             const [{ data: exams }, { data: exercises }] = await Promise.all([
-                supabase.from('exams').select('id, title').order('created_at', { ascending: false }).limit(5),
-                supabase.from('exercises').select('id, title').order('created_at', { ascending: false }).limit(5)
+                supabase.from('exams').select('id, title').order('created_at', { ascending: false }),
+                supabase.from('exercises').select('id, title').order('created_at', { ascending: false })
             ]);
 
             const combined: Mentionable[] = [
@@ -137,38 +141,44 @@ export default function TasksPage() {
     };
 
     /**
-     * Detecta si se está escribiendo una mención con @.
+     * Maneja el cambio del título de la tarea.
+     * @param e Evento de cambio del input
      */
     const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        setNewTaskTitle(value);
-
-        const lastAtIndices = value.lastIndexOf('@');
-        if (lastAtIndices !== -1 && lastAtIndices === value.length - 1) {
-            setShowMentions(true);
-            setMentionFilter("");
-        } else if (showMentions) {
-            const query = value.slice(lastAtIndices + 1);
-            if (query.includes(" ")) {
-                setShowMentions(false);
-            } else {
-                setMentionFilter(query);
-            }
-        }
+        setNewTaskTitle(e.target.value);
     };
 
     /**
-     * Aplica la mención seleccionada al título de la tarea.
+     * Crea una nueva materia en Supabase para el usuario actual.
+     * @param e Evento de envío del formulario
      */
-    const applyMention = (m: Mentionable) => {
-        const lastAt = newTaskTitle.lastIndexOf('@');
-        const base = newTaskTitle.slice(0, lastAt).trim();
-        setNewTaskTitle(base + " "); // Mantenemos el texto base y un espacio
+    const handleCreateSubject = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!newSubjectName.trim() || !user) return;
 
-        setSelectedMention(m);
-        setShowMentions(false);
-        inputRef.current?.focus();
+        try {
+            const { data, error } = await supabase
+                .from('subjects')
+                .insert({
+                    name: newSubjectName,
+                    color: newSubjectColor,
+                    user_id: user.id
+                })
+                .select()
+                .single();
+
+            if (error) throw error;
+            if (data) {
+                setSubjects([...subjects, data]);
+                setSelectedSubjectId(data.id);
+                setIsAddingSubject(false);
+                setNewSubjectName("");
+            }
+        } catch (error) {
+            console.error("Error creating subject:", error);
+        }
     };
+
 
     /**
      * Prepara el formulario para editar una tarea existente.
@@ -192,27 +202,38 @@ export default function TasksPage() {
     };
 
     /**
-     * Elimina una tarea de Supabase.
+     * Prepara una tarea para ser eliminada mostrando el modal de confirmación.
+     * @param taskId ID de la tarea a eliminar
      */
-    const deleteTask = async (taskId: string) => {
-        if (!confirm("¿Estás seguro de que quieres eliminar esta tarea?")) return;
+    const deleteTask = (taskId: string) => {
+        setTaskToDelete(taskId);
+    };
+
+    /**
+     * Ejecuta la eliminación definitiva de la tarea en la base de datos.
+     */
+    const confirmDelete = async () => {
+        if (!taskToDelete) return;
 
         try {
             const { error } = await supabase
                 .from('tasks')
                 .delete()
-                .eq('id', taskId);
+                .eq('id', taskToDelete);
 
             if (error) throw error;
 
-            setTasks(tasks.filter(t => t.id !== taskId));
+            setTasks(tasks.filter(t => t.id !== taskToDelete));
         } catch (error) {
             console.error("Error deleting task:", error);
+        } finally {
+            setTaskToDelete(null);
         }
     };
 
     /**
-     * Guarda la nueva tarea en Supabase.
+     * Guarda la tarea (nueva o editada) en Supabase con sus vínculos.
+     * @param e Evento de envío del formulario
      */
     const handleSaveTask = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -274,6 +295,8 @@ export default function TasksPage() {
         setSelectedMention(null);
         setEditingTask(null);
         setIsAdding(false);
+        setIsAddingSubject(false);
+        setNewSubjectName("");
     };
 
     /**
@@ -302,8 +325,13 @@ export default function TasksPage() {
         );
     }
 
-    const pendingTasks = tasks.filter(t => !t.completed);
-    const completedTasks = tasks.filter(t => t.completed);
+    // Filtrar tareas según la materia seleccionada
+    const filteredTasks = filterSubjectId
+        ? tasks.filter(t => t.subject_id === filterSubjectId)
+        : tasks;
+
+    const pendingTasks = filteredTasks.filter(t => !t.completed);
+    const completedTasks = filteredTasks.filter(t => t.completed);
 
     return (
         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-500 max-w-5xl mx-auto pb-10">
@@ -329,86 +357,151 @@ export default function TasksPage() {
                                     {editingTask ? "Editando Tarea" : "Nueva Tarea"}
                                 </span>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                <div className="md:col-span-2 relative">
+                            <div className="grid grid-cols-1 gap-4">
+                                <div className="relative">
                                     <Input
                                         ref={inputRef}
                                         autoFocus
                                         label="¿Qué tienes que hacer?"
                                         value={newTaskTitle}
                                         onChange={handleTitleChange}
-                                        placeholder="Ej: Repasar tema 1 @examen..."
+                                        placeholder="Ej: Repasar tema 1 para el examen..."
                                         className="text-lg"
                                     />
+                                </div>
 
-                                    {/* Selected Mention Chip (Bubble) */}
-                                    {selectedMention && (
-                                        <div className="flex flex-wrap gap-2 mt-2">
-                                            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary-100 text-primary-700 rounded-xl text-xs font-bold border border-primary-200 animate-in zoom-in-95 shadow-sm">
-                                                {selectedMention.type === 'exam' ? <Calendar size={14} className="text-red-500" /> : <ClipboardList size={14} className="text-blue-500" />}
-                                                <span>Vinculado a: {selectedMention.title}</span>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setSelectedMention(null)}
-                                                    className="ml-1 p-0.5 hover:bg-primary-200 rounded-full transition-colors"
-                                                >
-                                                    <X size={14} />
-                                                </button>
-                                            </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <label className="text-sm font-medium text-slate-700">Materia</label>
+                                            <button
+                                                type="button"
+                                                onClick={() => setIsAddingSubject(!isAddingSubject)}
+                                                className="text-[10px] font-bold text-primary-600 hover:text-primary-700 uppercase tracking-wider"
+                                            >
+                                                {isAddingSubject ? "Cancelar" : "+ Nueva"}
+                                            </button>
                                         </div>
-                                    )}
 
-                                    {/* Mention Suggestions Popup */}
-                                    {showMentions && (
-                                        <div className="absolute top-full left-0 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-30 max-h-48 overflow-y-auto p-1 animate-in fade-in zoom-in-95">
-                                            <div className="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2">
-                                                <AtSign size={12} /> Sugerencias
-                                            </div>
-                                            {mentionables
-                                                .filter(m => m.title.toLowerCase().includes(mentionFilter.toLowerCase()))
-                                                .map(m => (
-                                                    <button
-                                                        key={`${m.type}-${m.id}`}
+                                        {isAddingSubject ? (
+                                            <div className="space-y-2 p-3 bg-slate-50 rounded-xl border border-slate-200 animate-in fade-in slide-in-from-top-1">
+                                                <Input
+                                                    autoFocus
+                                                    placeholder="Nombre de la materia"
+                                                    value={newSubjectName}
+                                                    onChange={e => setNewSubjectName(e.target.value)}
+                                                    className="h-9 text-sm"
+                                                />
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex flex-wrap gap-1.5 flex-1">
+                                                        {['blue', 'red', 'green', 'purple', 'orange', 'pink', 'cyan', 'amber', 'teal', 'rose', 'indigo', 'slate'].map(color => (
+                                                            <button
+                                                                key={color}
+                                                                type="button"
+                                                                onClick={() => setNewSubjectColor(color)}
+                                                                className={`w-6 h-6 rounded-full bg-${color}-500 ring-offset-1 shrink-0 ${newSubjectColor === color ? 'ring-2 ring-slate-400' : ''}`}
+                                                            />
+                                                        ))}
+                                                    </div>
+                                                    <Button
                                                         type="button"
-                                                        onClick={() => applyMention(m)}
-                                                        className="w-full flex items-center gap-3 px-3 py-2 hover:bg-primary-50 text-left rounded-lg transition-colors group"
+                                                        size="sm"
+                                                        onClick={handleCreateSubject}
+                                                        disabled={!newSubjectName.trim()}
+                                                        className="h-8 px-3 text-xs"
                                                     >
-                                                        {m.type === 'exam' ? <Calendar size={14} className="text-red-500" /> : <ClipboardList size={14} className="text-blue-500" />}
-                                                        <span className="text-sm font-medium text-slate-700">{m.title}</span>
-                                                        <span className="ml-auto text-[10px] text-slate-400 group-hover:text-primary-400 capitalize">{m.type === 'exam' ? 'Examen' : 'Ejercicio'}</span>
-                                                    </button>
-                                                ))}
-                                            {mentionables.length === 0 && (
-                                                <div className="px-3 py-4 text-center text-sm text-slate-500">
-                                                    No hay exámenes o ejercicios recientes.
+                                                        Guardar
+                                                    </Button>
                                                 </div>
-                                            )}
-                                        </div>
+                                            </div>
+                                        ) : (
+                                            <select
+                                                value={selectedSubjectId}
+                                                onChange={e => setSelectedSubjectId(e.target.value)}
+                                                className="w-full px-4 py-2 bg-white rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all cursor-pointer h-[42px]"
+                                            >
+                                                <option value="">Selecciona materia...</option>
+                                                {subjects.map(s => (
+                                                    <option key={s.id} value={s.id}>{s.name}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-sm font-medium text-slate-700 mb-1">Vincular a...</label>
+                                        <select
+                                            value={selectedMention ? `${selectedMention.type}:${selectedMention.id}` : ""}
+                                            onChange={e => {
+                                                const val = e.target.value;
+                                                if (!val) {
+                                                    setSelectedMention(null);
+                                                } else {
+                                                    const [type, id] = val.split(':');
+                                                    const m = mentionables.find(mn => mn.id === id && mn.type === type);
+                                                    if (m) setSelectedMention(m);
+                                                }
+                                            }}
+                                            className="w-full px-4 py-2 bg-white rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all cursor-pointer h-[42px]"
+                                        >
+                                            <option value="">Ninguno</option>
+                                            <optgroup label="Exámenes">
+                                                {mentionables.filter(m => m.type === 'exam').map(m => (
+                                                    <option key={m.id} value={`exam:${m.id}`}>{m.title}</option>
+                                                ))}
+                                            </optgroup>
+                                            <optgroup label="Ejercicios">
+                                                {mentionables.filter(m => m.type === 'exercise').map(m => (
+                                                    <option key={m.id} value={`exercise:${m.id}`}>{m.title}</option>
+                                                ))}
+                                            </optgroup>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <Input
+                                            type="date"
+                                            label="Fecha Límite"
+                                            value={dueDate}
+                                            onChange={e => setDueDate(e.target.value)}
+                                            className="h-[42px]"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Preview of Bubbles */}
+                                <div className="mt-2 flex flex-wrap items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-dashed border-slate-200 min-h-[50px]">
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mr-1">Vista previa:</span>
+
+                                    {selectedSubjectId && (
+                                        (() => {
+                                            const s = subjects.find(sub => sub.id === selectedSubjectId);
+                                            return s ? (
+                                                <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-${s.color}-100 text-${s.color}-700 border border-${s.color}-200/50 animate-in zoom-in-95`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full bg-${s.color}-500`} />
+                                                    {s.name}
+                                                </span>
+                                            ) : null;
+                                        })()
                                     )}
-                                </div>
 
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Materia</label>
-                                    <select
-                                        value={selectedSubjectId}
-                                        onChange={e => setSelectedSubjectId(e.target.value)}
-                                        className="w-full px-4 py-2 bg-white rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-all cursor-pointer h-[42px]"
-                                    >
-                                        <option value="">Selecciona materia...</option>
-                                        {subjects.map(s => (
-                                            <option key={s.id} value={s.id}>{s.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
+                                    {selectedMention && (
+                                        <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full animate-in zoom-in-95 ${selectedMention.type === 'exam' ? 'bg-red-50 text-red-600 border border-red-100' : 'bg-blue-50 text-blue-600 border border-blue-100'}`}>
+                                            {selectedMention.type === 'exam' ? <Calendar size={10} /> : <ClipboardList size={10} />}
+                                            {selectedMention.title}
+                                        </span>
+                                    )}
 
-                                <div>
-                                    <Input
-                                        type="date"
-                                        label="Fecha Límite"
-                                        value={dueDate}
-                                        onChange={e => setDueDate(e.target.value)}
-                                        className="h-[42px]"
-                                    />
+                                    {dueDate && (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full bg-orange-50 text-orange-600 border border-orange-100 animate-in zoom-in-95">
+                                            <Calendar size={10} />
+                                            {new Date(dueDate).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                        </span>
+                                    )}
+
+                                    {!selectedSubjectId && !selectedMention && !dueDate && (
+                                        <span className="text-[10px] font-medium text-slate-400 italic">Selecciona opciones para ver las etiquetas...</span>
+                                    )}
                                 </div>
                             </div>
 
@@ -483,12 +576,20 @@ export default function TasksPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="p-4 space-y-1">
-                            <Button variant="secondary" className="w-full justify-start text-left rounded-lg bg-primary-50 text-primary-700 border-none">Todas las tareas</Button>
+                            <Button
+                                variant={filterSubjectId === null ? "secondary" : "ghost"}
+                                onClick={() => setFilterSubjectId(null)}
+                                className={`w-full justify-start text-left rounded-lg gap-3 ${filterSubjectId === null ? 'bg-primary-50 text-primary-700 border-none' : 'text-slate-600 hover:bg-slate-50'}`}
+                            >
+                                <div className={`w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0`} />
+                                Todas las tareas
+                            </Button>
                             {subjects.map(subject => (
                                 <Button
                                     key={subject.id}
-                                    variant="ghost"
-                                    className="w-full justify-start text-left rounded-lg hover:bg-slate-50 gap-3"
+                                    variant={filterSubjectId === subject.id ? "secondary" : "ghost"}
+                                    onClick={() => setFilterSubjectId(subject.id)}
+                                    className={`w-full justify-start text-left rounded-lg gap-3 ${filterSubjectId === subject.id ? `bg-${subject.color}-50 text-${subject.color}-700 border-none` : 'text-slate-600 hover:bg-slate-50'}`}
                                 >
                                     <div className={`w-2.5 h-2.5 rounded-full bg-${subject.color}-500 shrink-0`} />
                                     {subject.name}
@@ -509,6 +610,17 @@ export default function TasksPage() {
                     </Card>
                 </div>
             </div>
+
+            <ConfirmationModal
+                isOpen={!!taskToDelete}
+                onClose={() => setTaskToDelete(null)}
+                onConfirm={confirmDelete}
+                title="Eliminar Plan"
+                message="¿Se va a eliminar esta tarea de tu planificación académica? Confírmalo si has terminado con ella o si ya no es necesaria."
+                confirmText="Eliminar"
+                cancelText="Volver"
+                variant="danger"
+            />
         </div>
     );
 }
