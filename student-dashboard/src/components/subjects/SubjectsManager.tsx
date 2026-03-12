@@ -1,18 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
-import { supabase } from "../../lib/supabase";
 import { useAuth } from "../../hooks/useAuth";
+import { subjectService } from "../../services/subjectService";
+import { type Subject } from "../../services/taskService";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/Card";
 import { Button } from "../ui/Button";
 import { Input } from "../ui/Input";
 import { ConfirmationModal } from "../ui/Modal";
 import { BookOpen, Plus, Edit3, Trash2, Loader2, Palette, Check, X } from "lucide-react";
 import { cn } from "../../lib/utils";
-
-interface Subject {
-    id: string;
-    name: string;
-    color: string;
-}
 
 /** Mapa de clases Tailwind por color para mantener consistencia con Tasks.tsx */
 const subjectColorMap: Record<string, { bg100: string; text700: string; border200: string; bg500: string; bg50: string }> = {
@@ -57,14 +52,8 @@ export default function SubjectsManager() {
         if (!user) return;
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('subjects')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('name');
-
-            if (error) throw error;
-            setSubjects(data || []);
+            const data = await subjectService.getSubjects(user.id);
+            setSubjects(data);
         } catch (error) {
             console.error("Error fetching subjects:", error);
         } finally {
@@ -130,21 +119,10 @@ export default function SubjectsManager() {
             };
 
             if (editingId) {
-                const { error } = await supabase
-                    .from('subjects')
-                    .update(subjectData)
-                    .eq('id', editingId);
-
-                if (error) throw error;
+                await subjectService.updateSubject(editingId, subjectData);
                 setSubjects(subjects.map(s => s.id === editingId ? { ...s, ...subjectData } : s));
             } else {
-                const { data, error } = await supabase
-                    .from('subjects')
-                    .insert(subjectData)
-                    .select()
-                    .single();
-
-                if (error) throw error;
+                const data = await subjectService.createSubject(subjectData);
                 if (data) setSubjects([...subjects, data].sort((a, b) => a.name.localeCompare(b.name)));
             }
             closeForm();
@@ -171,12 +149,7 @@ export default function SubjectsManager() {
 
         try {
             setActionLoading(true);
-            const { error } = await supabase
-                .from('subjects')
-                .delete()
-                .eq('id', subjectToDelete.id);
-
-            if (error) throw error;
+            await subjectService.deleteSubject(subjectToDelete.id);
             setSubjects(subjects.filter(s => s.id !== subjectToDelete.id));
             setSubjectToDelete(null);
         } catch (error) {

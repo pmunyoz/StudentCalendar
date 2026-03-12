@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "../lib/supabase";
+import { authService } from "../services/authService";
+import { userService } from "../services/userService";
 
 /**
  * Página de Login / Registro. Renderiza el formulario de inicio de sesión.
@@ -20,32 +21,6 @@ export default function LoginPage() {
     const navigate = useNavigate();
 
     /**
-     * Sube el archivo de imagen al bucket 'avatars' de Supabase y devuelve la URL.
-     * 
-     * @param file - Archivo de imagen a subir
-     * @param userId - ID del usuario para nombrar el archivo
-     */
-    const uploadAvatar = async (file: File, userId: string) => {
-        const fileExt = file.name.split('.').pop();
-        const fileName = `${userId}-${Math.random()}.${fileExt}`;
-        const filePath = `${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('avatars')
-            .upload(filePath, file);
-
-        if (uploadError) {
-            throw uploadError;
-        }
-
-        const { data } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
-    };
-
-    /**
      * Maneja el envío del formulario para iniciar sesión o registrarse usando Supabase.
      * 
      * @param e - Evento del formulario React
@@ -59,10 +34,7 @@ export default function LoginPage() {
             setLoading(true);
             if (isRegistering) {
                 // Registro de usuario
-                const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-                    email,
-                    password,
-                });
+                const { data: signUpData, error: signUpError } = await authService.signUp(email, password);
 
                 if (signUpError) {
                     setError(signUpError.message);
@@ -72,25 +44,19 @@ export default function LoginPage() {
 
                 if (signUpData.user) {
                     try {
-                        let avatarUrl = "";
+                        let avatarUrl = null;
                         if (avatarFile) {
-                            avatarUrl = await uploadAvatar(avatarFile, signUpData.user.id);
+                            avatarUrl = await userService.uploadAvatar(signUpData.user.id, avatarFile);
                         }
 
                         // Guardar perfil en la tabla 'profiles'
-                        const { error: profileError } = await supabase
-                            .from('profiles')
-                            .insert([
-                                {
-                                    id: signUpData.user.id,
-                                    first_name: firstName,
-                                    last_name: lastName,
-                                    birth_date: birthDate,
-                                    avatar_url: avatarUrl,
-                                }
-                            ]);
-
-                        if (profileError) throw profileError;
+                        await userService.updateProfile({
+                            id: signUpData.user.id,
+                            first_name: firstName,
+                            last_name: lastName,
+                            birth_date: birthDate,
+                            avatar_url: avatarUrl,
+                        });
 
                         setSuccessMsg("Registro exitoso. Revisa tu correo o inicia sesión.");
                         setIsRegistering(false);
@@ -106,10 +72,7 @@ export default function LoginPage() {
                 }
             } else {
                 // Inicio de sesión
-                const { data, error: signInError } = await supabase.auth.signInWithPassword({
-                    email,
-                    password,
-                });
+                const { data, error: signInError } = await authService.signIn(email, password);
 
                 if (signInError) {
                     setError(signInError.message === "Invalid login credentials" ? "Credenciales incorrectas" : signInError.message);

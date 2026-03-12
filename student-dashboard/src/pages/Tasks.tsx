@@ -1,43 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { ConfirmationModal } from "../components/ui/Modal";
 import { CheckCircle2, Circle, MoreVertical, Plus, BookOpen, Calendar, ClipboardList, Loader2, Trash2, Edit3 } from "lucide-react";
-
-interface Subject {
-    id: string;
-    name: string;
-    color: string;
-}
-
-interface Exam {
-    id: string;
-    title: string;
-    type: 'exam';
-}
-
-interface Exercise {
-    id: string;
-    title: string;
-    type: 'exercise';
-}
-
-type Mentionable = Exam | Exercise;
-
-interface Task {
-    id: string;
-    title: string;
-    subject_id: string | null;
-    due_date: string | null;
-    completed: boolean;
-    linked_id: string | null;
-    linked_type: 'exam' | 'exercise' | null;
-    linked_title?: string;
-    subject?: Subject;
-}
+import { taskService, type Task, type Subject } from "../services/taskService";
+import { subjectService } from "../services/subjectService";
+import { referenceService, type Mentionable } from "../services/referenceService";
 
 /**
  * Componente principal de la página de Tareas.
@@ -71,61 +41,30 @@ export default function TasksPage() {
         try {
             setLoading(true);
 
-            // 1. Fetch Subjects (filtrado por usuario)
-            const { data: subData } = await supabase
-                .from('subjects')
-                .select('*')
-                .eq('user_id', user.id)
-                .order('name');
-
-            if (subData && subData.length > 0) {
-                setSubjects(subData);
-            } else {
-                // Crear algunas materias por defecto si no existen
-                const defaultSubjects = [
-                    { name: 'Matemáticas', color: 'blue', user_id: user.id },
-                    { name: 'Historia', color: 'red', user_id: user.id },
-                    { name: 'Literatura', color: 'green', user_id: user.id }
-                ];
-                const { data: newSubs } = await supabase.from('subjects').insert(defaultSubjects).select();
-                if (newSubs) setSubjects(newSubs);
+            // 1. Fetch Subjects
+            let subData = await subjectService.getSubjects(user.id);
+            if (subData.length === 0) {
+                subData = await subjectService.createDefaultSubjects(user.id);
             }
+            setSubjects(subData);
 
-            // 2. Fetch Exams and Exercises for linking (filtrado por usuario)
-            const [{ data: exams }, { data: exercises }] = await Promise.all([
-                supabase.from('exams').select('id, title').eq('user_id', user.id).order('created_at', { ascending: false }),
-                supabase.from('exercises').select('id, title').eq('user_id', user.id).order('created_at', { ascending: false })
-            ]);
-
-            const examsList = exams ?? [];
-            const exercisesList = exercises ?? [];
-
-            const combined: Mentionable[] = [
-                ...examsList.map(e => ({ ...e, type: 'exam' as const })),
-                ...exercisesList.map(e => ({ ...e, type: 'exercise' as const }))
-            ];
+            // 2. Fetch Mentions (Exams & Exercises)
+            const combined = await referenceService.getMentionables(user.id);
             setMentionables(combined);
 
-            // Construir mapa de títulos para resolver linked_title sin N+1
+            // Construir mapa de títulos para resolver linked_title
             const titleMap = new Map<string, string>();
-            for (const e of examsList) titleMap.set(e.id, e.title);
-            for (const e of exercisesList) titleMap.set(e.id, e.title);
+            combined.forEach(m => titleMap.set(m.id, m.title));
 
-            // 3. Fetch Tasks (filtrado por usuario)
-            const { data: taskData } = await supabase
-                .from('tasks')
-                .select('*, subject:subjects(*)')
-                .eq('user_id', user.id)
-                .order('created_at', { ascending: false });
+            // 3. Fetch Tasks
+            const taskData = await taskService.getTasks(user.id);
 
-            // 4. Resolver linked_title en memoria (sin queries adicionales)
-            if (taskData) {
-                const tasksWithTitles: Task[] = taskData.map((task) => ({
-                    ...task,
-                    linked_title: task.linked_id ? titleMap.get(task.linked_id) : undefined,
-                }));
-                setTasks(tasksWithTitles);
-            }
+            // 4. Resolver linked_title en memoria
+            const tasksWithTitles: Task[] = taskData.map((task) => ({
+                ...task,
+                linked_title: task.linked_id ? titleMap.get(task.linked_id) : undefined,
+            }));
+            setTasks(tasksWithTitles);
 
         } catch (error) {
             console.error("Error loading tasks data:", error);
@@ -155,17 +94,12 @@ export default function TasksPage() {
         if (!newSubjectName.trim() || !user) return;
 
         try {
-            const { data, error } = await supabase
-                .from('subjects')
-                .insert({
-                    name: newSubjectName,
-                    color: newSubjectColor,
-                    user_id: user.id
-                })
-                .select()
-                .single();
+            const data = await subjectService.createSubject({
+                name: newSubjectName,
+                color: newSubjectColor,
+                user_id: user.id
+            });
 
-            if (error) throw error;
             if (data) {
                 setSubjects([...subjects, data]);
                 setSelectedSubjectId(data.id);
@@ -214,13 +148,7 @@ export default function TasksPage() {
         if (!taskToDelete) return;
 
         try {
-            const { error } = await supabase
-                .from('tasks')
-                .delete()
-                .eq('id', taskToDelete);
-
-            if (error) throw error;
-
+            await taskService.deleteTask(taskToDelete);
             setTasks(tasks.filter(t => t.id !== taskToDelete));
         } catch (error) {
             console.error("Error deleting task:", error);
@@ -238,7 +166,7 @@ export default function TasksPage() {
         if (!newTaskTitle.trim() || !user) return;
 
         try {
-            const taskDataToSave = {
+            const taskDataToSave: Partial<Task> = {
                 title: newTaskTitle,
                 user_id: user.id,
                 subject_id: selectedSubjectId || null,
@@ -249,28 +177,14 @@ export default function TasksPage() {
 
             if (editingTask) {
                 // UPDATE
-                const { data, error } = await supabase
-                    .from('tasks')
-                    .update(taskDataToSave)
-                    .eq('id', editingTask.id)
-                    .select('*, subject:subjects(*)')
-                    .single();
-
-                if (error) throw error;
+                const data = await taskService.updateTask(editingTask.id, taskDataToSave);
                 if (data) {
-                    // Recuperamos el título vinculado para el estado local
                     const updatedTask = { ...data, linked_title: selectedMention?.title };
                     setTasks(tasks.map(t => t.id === editingTask.id ? (updatedTask as Task) : t));
                 }
             } else {
                 // INSERT
-                const { data, error } = await supabase
-                    .from('tasks')
-                    .insert({ ...taskDataToSave, completed: false })
-                    .select('*, subject:subjects(*)')
-                    .single();
-
-                if (error) throw error;
+                const data = await taskService.createTask({ ...taskDataToSave, completed: false });
                 if (data) {
                     const newTask = { ...data, linked_title: selectedMention?.title };
                     setTasks([newTask as Task, ...tasks]);
@@ -302,13 +216,7 @@ export default function TasksPage() {
      */
     const toggleTask = async (task: Task) => {
         try {
-            const { error } = await supabase
-                .from('tasks')
-                .update({ completed: !task.completed })
-                .eq('id', task.id);
-
-            if (error) throw error;
-
+            await taskService.updateTask(task.id, { completed: !task.completed });
             setTasks(tasks.map(t => t.id === task.id ? { ...t, completed: !t.completed } : t));
         } catch (error) {
             console.error("Error toggling task:", error);

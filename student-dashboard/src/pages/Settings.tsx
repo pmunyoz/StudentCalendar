@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
+import { userService, type Profile } from "../services/userService";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { User, Mail, Calendar, Save, AlertCircle, CheckCircle2, Lock, Camera, Loader2 } from "lucide-react";
 import SubjectsManager from "../components/subjects/SubjectsManager";
@@ -34,13 +34,7 @@ export default function Settings() {
         if (!user) return;
         try {
             setLoading(true);
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('id', user.id)
-                .single();
-
-            if (error) throw error;
+            const data = await userService.getProfile(user.id);
 
             if (data) {
                 setFirstName(data.first_name || "");
@@ -76,30 +70,6 @@ export default function Settings() {
     }, [currentAvatarUrl, avatarFile]);
 
     /**
-     * Sube un archivo de imagen al bucket 'avatars' de Supabase Storage.
-     * @param file El archivo de imagen a subir.
-     * @returns La URL pública del archivo subido.
-     */
-    const uploadAvatar = async (file: File) => {
-        const fileExt = file.name.split('.').pop();
-        const filePath = `${user?.id}/avatar.${fileExt}`;
-
-        const { error: uploadError } = await supabase.storage
-            .from('avatars')
-            .upload(filePath, file, {
-                upsert: true
-            });
-
-        if (uploadError) throw uploadError;
-
-        const { data } = supabase.storage
-            .from('avatars')
-            .getPublicUrl(filePath);
-
-        return data.publicUrl;
-    };
-
-    /**
      * Maneja la selección de un nuevo archivo de imagen y genera una previsualización.
      */
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +103,7 @@ export default function Settings() {
             return;
         }
 
+        if (!user) return;
         setSaving(true);
 
         try {
@@ -140,24 +111,19 @@ export default function Settings() {
 
             // 1. Subir avatar si hay uno nuevo seleccionado
             if (avatarFile) {
-                avatar_url = await uploadAvatar(avatarFile);
+                avatar_url = await userService.uploadAvatar(user.id, avatarFile);
             }
 
             // 2. Actualizar perfil en la tabla 'profiles'
-            const updateData: Record<string, string | undefined> = {
-                id: user?.id,
+            const updateData: Partial<Profile> & { id: string } = {
+                id: user.id,
                 first_name: firstName,
                 last_name: lastName,
                 birth_date: birthDate,
-                updated_at: new Date().toISOString(),
             };
             if (avatar_url) updateData.avatar_url = avatar_url;
 
-            const { error: profileError } = await supabase
-                .from('profiles')
-                .upsert(updateData);
-
-            if (profileError) throw profileError;
+            await userService.updateProfile(updateData);
 
             // Actualizar previsualización inmediatamente con cache buster
             if (avatar_url) {
@@ -165,13 +131,12 @@ export default function Settings() {
             }
 
             // 3. Actualizar Auth data (email y/o password) en Supabase Auth
-            const authUpdates: Record<string, string> = {};
-            if (email !== user?.email) authUpdates.email = email;
+            const authUpdates: { email?: string; password?: string } = {};
+            if (email !== user.email) authUpdates.email = email;
             if (newPassword) authUpdates.password = newPassword;
 
             if (Object.keys(authUpdates).length > 0) {
-                const { error: authError } = await supabase.auth.updateUser(authUpdates);
-                if (authError) throw authError;
+                await userService.updateAuthUser(authUpdates);
 
                 if (authUpdates.email) {
                     setError("El correo ha sido actualizado. Revisa tu bandeja de entrada para confirmarlo.");

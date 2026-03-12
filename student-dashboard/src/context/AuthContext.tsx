@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
 import { AuthContext } from './authContextDef';
+import { authService } from '../services/authService';
+import { userService } from '../services/userService';
 
 /**
  * Proveedor de autenticación que gestiona el estado del usuario de Supabase
@@ -14,13 +15,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const fetchProfile = async (userId: string) => {
         try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('first_name, avatar_url')
-                .eq('id', userId)
-                .single();
+            const data = await userService.getProfile(userId);
 
-            if (data && !error) {
+            if (data) {
                 if (data.first_name) setUserName(data.first_name);
 
                 // Añadir cache buster si existe URL para forzar actualización visual
@@ -39,12 +36,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const signOut = async () => {
-        await supabase.auth.signOut();
+        await authService.signOut();
     };
 
     useEffect(() => {
         // Verificar sesión actual
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        authService.getSession().then(({ data: { session } }) => {
             const currentUser = session?.user ?? null;
             setUser(currentUser);
             if (currentUser) {
@@ -55,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         // Escuchar cambios en la autenticación
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = authService.onAuthStateChange((_event, session) => {
             const currentUser = session?.user ?? null;
             setUser(currentUser);
             if (currentUser) {
