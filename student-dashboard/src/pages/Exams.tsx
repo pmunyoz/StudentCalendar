@@ -65,7 +65,7 @@ function DeadlineCard({ time, title, desc, color }: { time: string, title: strin
         <div className={`border-l-4 rounded-r-xl p-3 ${styles.split(' bg')[0]} ${styles.split(' ')[1]} mb-3`}>
             <div className={`text-xs font-black uppercase tracking-wider mb-1 ${styles.split(' ')[2]}`}>{time}</div>
             <div className="font-bold text-slate-800 text-[13px]">{title}</div>
-            <div className="textxs text-slate-500 mt-1">{desc}</div>
+            <div className="text-xs text-slate-500 mt-1">{desc}</div>
         </div>
     );
 }

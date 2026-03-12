@@ -99,8 +99,9 @@ export default function LoginPage() {
                         setLastName("");
                         setBirthDate("");
                         setAvatarFile(null);
-                    } catch (err: any) {
-                        setError("Error al crear el perfil: " + err.message);
+                    } catch (err: unknown) {
+                        const message = err instanceof Error ? err.message : String(err);
+                        setError("Error al crear el perfil: " + message);
                     }
                 }
             } else {

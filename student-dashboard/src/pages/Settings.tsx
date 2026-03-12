@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { User, Mail, Calendar, Save, AlertCircle, CheckCircle2, Lock, Camera, Loader2 } from "lucide-react";
+import SubjectsManager from "../components/subjects/SubjectsManager";
 
 /**
  * Página de Configuración para editar el perfil del usuario
@@ -29,32 +30,14 @@ export default function Settings() {
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        if (user) {
-            setEmail(user.email || "");
-            fetchProfile();
-        }
-    }, [user]);
-
-    // Sincronizar previsualización con la URL actual del perfil SOLO si no hay un archivo local pendiente
-    useEffect(() => {
-        if (currentAvatarUrl && !avatarFile) {
-            setPreviewUrl(currentAvatarUrl);
-        } else if (!currentAvatarUrl && !avatarFile) {
-            setPreviewUrl(null);
-        }
-    }, [currentAvatarUrl, avatarFile]);
-
-    /**
-     * Obtiene los datos del perfil del usuario desde la tabla 'profiles' de Supabase.
-     */
-    const fetchProfile = async () => {
+    const fetchProfile = useCallback(async () => {
+        if (!user) return;
         try {
             setLoading(true);
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
-                .eq('id', user?.id)
+                .eq('id', user.id)
                 .single();
 
             if (error) throw error;
@@ -64,19 +47,33 @@ export default function Settings() {
                 setLastName(data.last_name || "");
                 setBirthDate(data.birth_date || "");
 
-                // Si hay un avatar_url en la BD y no hay un archivo nuevo seleccionado,
-                // actualizamos la previsualización directamente.
-                if (data.avatar_url && !avatarFile) {
+                if (data.avatar_url) {
                     setPreviewUrl(data.avatar_url);
                 }
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Error fetching profile:", err);
             setError("No se pudo cargar la información del perfil.");
         } finally {
             setLoading(false);
         }
-    };
+    }, [user]);
+
+    useEffect(() => {
+        if (user) {
+            setEmail(user.email || "");
+            fetchProfile();
+        }
+    }, [user, fetchProfile]);
+
+    // Sincronizar previsualización con la URL actual del perfil SOLO si no hay un archivo local pendiente
+    useEffect(() => {
+        if (currentAvatarUrl && !avatarFile) {
+            setPreviewUrl(currentAvatarUrl);
+        } else if (!currentAvatarUrl && !avatarFile) {
+            setPreviewUrl(null);
+        }
+    }, [currentAvatarUrl, avatarFile]);
 
     /**
      * Sube un archivo de imagen al bucket 'avatars' de Supabase Storage.
@@ -147,12 +144,12 @@ export default function Settings() {
             }
 
             // 2. Actualizar perfil en la tabla 'profiles'
-            const updateData: any = {
+            const updateData: Record<string, string | undefined> = {
                 id: user?.id,
                 first_name: firstName,
                 last_name: lastName,
                 birth_date: birthDate,
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
             };
             if (avatar_url) updateData.avatar_url = avatar_url;
 
@@ -168,7 +165,7 @@ export default function Settings() {
             }
 
             // 3. Actualizar Auth data (email y/o password) en Supabase Auth
-            const authUpdates: any = {};
+            const authUpdates: Record<string, string> = {};
             if (email !== user?.email) authUpdates.email = email;
             if (newPassword) authUpdates.password = newPassword;
 
@@ -189,9 +186,9 @@ export default function Settings() {
             setAvatarFile(null);
 
             setTimeout(() => setSuccess(false), 5000);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Error updating profile:", err);
-            setError(err.message || "Error al actualizar el perfil.");
+            setError(err instanceof Error ? err.message : "Error al actualizar el perfil.");
         } finally {
             setSaving(false);
         }
@@ -211,6 +208,9 @@ export default function Settings() {
                 <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Configuración</h1>
                 <p className="text-slate-500 mt-1">Gestiona tu perfil y seguridad.</p>
             </header>
+
+            {/* Subjects Management Section */}
+            <SubjectsManager />
 
             <form onSubmit={handleSave} className="space-y-6">
                 {/* Profile Photo Section */}

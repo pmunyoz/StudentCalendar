@@ -8,7 +8,8 @@ import CollabPage from "./pages/Collaboration.tsx";
 import SettingsPage from "./pages/Settings.tsx";
 import LoginPage from "./pages/Login.tsx";
 import { SecurityHeaders } from "./components/security/SecurityHeaders.tsx";
-import { AuthProvider, useAuth } from './context/AuthContext';
+import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './hooks/useAuth';
 
 /**
  * OWASP A01: Broken Access Control

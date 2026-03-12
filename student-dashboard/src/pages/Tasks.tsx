@@ -1,11 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "../lib/supabase";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/Input";
 import { ConfirmationModal } from "../components/ui/Modal";
-import { CheckCircle2, Circle, MoreVertical, Plus, BookOpen, Calendar, ClipboardList, Loader2, Trash2, Edit3, X } from "lucide-react";
+import { CheckCircle2, Circle, MoreVertical, Plus, BookOpen, Calendar, ClipboardList, Loader2, Trash2, Edit3 } from "lucide-react";
 
 interface Subject {
     id: string;
@@ -66,23 +66,16 @@ export default function TasksPage() {
     const [selectedMention, setSelectedMention] = useState<Mentionable | null>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    useEffect(() => {
-        if (user) {
-            fetchInitialData();
-        }
-    }, [user]);
-
-    /**
-     * Carga las materias, exámenes, ejercicios y tareas de Supabase.
-     */
-    const fetchInitialData = async () => {
+    const fetchInitialData = useCallback(async () => {
+        if (!user) return;
         try {
             setLoading(true);
 
-            // 1. Fetch Subjects
+            // 1. Fetch Subjects (filtrado por usuario)
             const { data: subData } = await supabase
                 .from('subjects')
                 .select('*')
+                .eq('user_id', user.id)
                 .order('name');
 
             if (subData && subData.length > 0) {
@@ -90,47 +83,48 @@ export default function TasksPage() {
             } else {
                 // Crear algunas materias por defecto si no existen
                 const defaultSubjects = [
-                    { name: 'Matemáticas', color: 'blue', user_id: user?.id },
-                    { name: 'Historia', color: 'red', user_id: user?.id },
-                    { name: 'Literatura', color: 'green', user_id: user?.id }
+                    { name: 'Matemáticas', color: 'blue', user_id: user.id },
+                    { name: 'Historia', color: 'red', user_id: user.id },
+                    { name: 'Literatura', color: 'green', user_id: user.id }
                 ];
                 const { data: newSubs } = await supabase.from('subjects').insert(defaultSubjects).select();
                 if (newSubs) setSubjects(newSubs);
             }
 
-            // 2. Fetch Exams and Exercises for linking
+            // 2. Fetch Exams and Exercises for linking (filtrado por usuario)
             const [{ data: exams }, { data: exercises }] = await Promise.all([
-                supabase.from('exams').select('id, title').order('created_at', { ascending: false }),
-                supabase.from('exercises').select('id, title').order('created_at', { ascending: false })
+                supabase.from('exams').select('id, title').eq('user_id', user.id).order('created_at', { ascending: false }),
+                supabase.from('exercises').select('id, title').eq('user_id', user.id).order('created_at', { ascending: false })
             ]);
 
+            const examsList = exams ?? [];
+            const exercisesList = exercises ?? [];
+
             const combined: Mentionable[] = [
-                ...(exams?.map(e => ({ ...e, type: 'exam' as const })) || []),
-                ...(exercises?.map(e => ({ ...e, type: 'exercise' as const })) || [])
+                ...examsList.map(e => ({ ...e, type: 'exam' as const })),
+                ...exercisesList.map(e => ({ ...e, type: 'exercise' as const }))
             ];
             setMentionables(combined);
 
-            // 3. Fetch Tasks
+            // Construir mapa de títulos para resolver linked_title sin N+1
+            const titleMap = new Map<string, string>();
+            for (const e of examsList) titleMap.set(e.id, e.title);
+            for (const e of exercisesList) titleMap.set(e.id, e.title);
+
+            // 3. Fetch Tasks (filtrado por usuario)
             const { data: taskData } = await supabase
                 .from('tasks')
                 .select('*, subject:subjects(*)')
+                .eq('user_id', user.id)
                 .order('created_at', { ascending: false });
 
-            // 4. Fetch linked titles if needed
+            // 4. Resolver linked_title en memoria (sin queries adicionales)
             if (taskData) {
-                const tasksWithTitles = await Promise.all(taskData.map(async (task: any) => {
-                    if (task.linked_id && task.linked_type) {
-                        const table = task.linked_type === 'exam' ? 'exams' : 'exercises';
-                        const { data: linkedItem } = await supabase
-                            .from(table)
-                            .select('title')
-                            .eq('id', task.linked_id)
-                            .single();
-                        return { ...task, linked_title: linkedItem?.title };
-                    }
-                    return task;
+                const tasksWithTitles: Task[] = taskData.map((task) => ({
+                    ...task,
+                    linked_title: task.linked_id ? titleMap.get(task.linked_id) : undefined,
                 }));
-                setTasks(tasksWithTitles as Task[]);
+                setTasks(tasksWithTitles);
             }
 
         } catch (error) {
@@ -138,7 +132,11 @@ export default function TasksPage() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [user]);
+
+    useEffect(() => {
+        fetchInitialData();
+    }, [fetchInitialData]);
 
     /**
      * Maneja el cambio del título de la tarea.
@@ -399,7 +397,7 @@ export default function TasksPage() {
                                                                 key={color}
                                                                 type="button"
                                                                 onClick={() => setNewSubjectColor(color)}
-                                                                className={`w-6 h-6 rounded-full bg-${color}-500 ring-offset-1 shrink-0 ${newSubjectColor === color ? 'ring-2 ring-slate-400' : ''}`}
+                                                                className={`w-6 h-6 rounded-full ${getColorClasses(color).bg500} ring-offset-1 shrink-0 ${newSubjectColor === color ? 'ring-2 ring-slate-400' : ''}`}
                                                             />
                                                         ))}
                                                     </div>
@@ -476,12 +474,14 @@ export default function TasksPage() {
                                     {selectedSubjectId && (
                                         (() => {
                                             const s = subjects.find(sub => sub.id === selectedSubjectId);
-                                            return s ? (
-                                                <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full bg-${s.color}-100 text-${s.color}-700 border border-${s.color}-200/50 animate-in zoom-in-95`}>
-                                                    <div className={`w-1.5 h-1.5 rounded-full bg-${s.color}-500`} />
+                                            if (!s) return null;
+                                            const pc = getColorClasses(s.color);
+                                            return (
+                                                <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full ${pc.bg100} ${pc.text700} border ${pc.border200} animate-in zoom-in-95`}>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${pc.bg500}`} />
                                                     {s.name}
                                                 </span>
-                                            ) : null;
+                                            );
                                         })()
                                     )}
 
@@ -584,17 +584,20 @@ export default function TasksPage() {
                                 <div className={`w-2.5 h-2.5 rounded-full bg-slate-400 shrink-0`} />
                                 Todas las tareas
                             </Button>
-                            {subjects.map(subject => (
-                                <Button
-                                    key={subject.id}
-                                    variant={filterSubjectId === subject.id ? "secondary" : "ghost"}
-                                    onClick={() => setFilterSubjectId(subject.id)}
-                                    className={`w-full justify-start text-left rounded-lg gap-3 ${filterSubjectId === subject.id ? `bg-${subject.color}-50 text-${subject.color}-700 border-none` : 'text-slate-600 hover:bg-slate-50'}`}
-                                >
-                                    <div className={`w-2.5 h-2.5 rounded-full bg-${subject.color}-500 shrink-0`} />
-                                    {subject.name}
-                                </Button>
-                            ))}
+                            {subjects.map(subject => {
+                                const sc = getColorClasses(subject.color);
+                                return (
+                                    <Button
+                                        key={subject.id}
+                                        variant={filterSubjectId === subject.id ? "secondary" : "ghost"}
+                                        onClick={() => setFilterSubjectId(subject.id)}
+                                        className={`w-full justify-start text-left rounded-lg gap-3 ${filterSubjectId === subject.id ? `${sc.bg50} ${sc.text700} border-none` : 'text-slate-600 hover:bg-slate-50'}`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${sc.bg500} shrink-0`} />
+                                        {subject.name}
+                                    </Button>
+                                );
+                            })}
                         </CardContent>
                     </Card>
 
@@ -625,6 +628,28 @@ export default function TasksPage() {
     );
 }
 
+/** Mapa de clases Tailwind por color para evitar interpolación dinámica */
+const subjectColorMap: Record<string, { bg100: string; text700: string; border200: string; bg500: string; bg50: string }> = {
+    blue:   { bg100: 'bg-blue-100',   text700: 'text-blue-700',   border200: 'border-blue-200/50',   bg500: 'bg-blue-500',   bg50: 'bg-blue-50' },
+    red:    { bg100: 'bg-red-100',    text700: 'text-red-700',    border200: 'border-red-200/50',    bg500: 'bg-red-500',    bg50: 'bg-red-50' },
+    green:  { bg100: 'bg-green-100',  text700: 'text-green-700',  border200: 'border-green-200/50',  bg500: 'bg-green-500',  bg50: 'bg-green-50' },
+    purple: { bg100: 'bg-purple-100', text700: 'text-purple-700', border200: 'border-purple-200/50', bg500: 'bg-purple-500', bg50: 'bg-purple-50' },
+    orange: { bg100: 'bg-orange-100', text700: 'text-orange-700', border200: 'border-orange-200/50', bg500: 'bg-orange-500', bg50: 'bg-orange-50' },
+    pink:   { bg100: 'bg-pink-100',   text700: 'text-pink-700',   border200: 'border-pink-200/50',   bg500: 'bg-pink-500',   bg50: 'bg-pink-50' },
+    cyan:   { bg100: 'bg-cyan-100',   text700: 'text-cyan-700',   border200: 'border-cyan-200/50',   bg500: 'bg-cyan-500',   bg50: 'bg-cyan-50' },
+    amber:  { bg100: 'bg-amber-100',  text700: 'text-amber-700',  border200: 'border-amber-200/50',  bg500: 'bg-amber-500',  bg50: 'bg-amber-50' },
+    teal:   { bg100: 'bg-teal-100',   text700: 'text-teal-700',   border200: 'border-teal-200/50',   bg500: 'bg-teal-500',   bg50: 'bg-teal-50' },
+    rose:   { bg100: 'bg-rose-100',   text700: 'text-rose-700',   border200: 'border-rose-200/50',   bg500: 'bg-rose-500',   bg50: 'bg-rose-50' },
+    indigo: { bg100: 'bg-indigo-100', text700: 'text-indigo-700', border200: 'border-indigo-200/50', bg500: 'bg-indigo-500', bg50: 'bg-indigo-50' },
+    slate:  { bg100: 'bg-slate-100',  text700: 'text-slate-700',  border200: 'border-slate-200/50',  bg500: 'bg-slate-500',  bg50: 'bg-slate-50' },
+};
+
+const defaultColorClasses = subjectColorMap.blue;
+
+function getColorClasses(color: string) {
+    return subjectColorMap[color] ?? defaultColorClasses;
+}
+
 /**
  * Componente individual para mostrar una tarea.
  * Permite marcar la tarea como completada o pendiente.
@@ -641,6 +666,7 @@ function TaskItem({
     onEdit: () => void
 }) {
     const [showActions, setShowActions] = useState(false);
+    const colors = task.subject ? getColorClasses(task.subject.color) : null;
 
     return (
         <div className={`group flex items-center gap-4 p-4 rounded-2xl border transition-all ${task.completed ? 'bg-slate-100/50 border-slate-200' : 'bg-white border-slate-200 shadow-sm hover:border-primary-300 hover:shadow-md'}`}>
@@ -656,9 +682,9 @@ function TaskItem({
                     {task.title}
                 </h4>
                 <div className="flex flex-wrap items-center gap-3 mt-1.5 no-wrap">
-                    {task.subject && (
-                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full bg-${task.subject.color}-100 text-${task.subject.color}-700 border border-${task.subject.color}-200/50`}>
-                            <div className={`w-1.5 h-1.5 rounded-full bg-${task.subject.color}-500`} />
+                    {task.subject && colors && (
+                        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full ${colors.bg100} ${colors.text700} border ${colors.border200}`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${colors.bg500}`} />
                             {task.subject.name}
                         </span>
                     )}

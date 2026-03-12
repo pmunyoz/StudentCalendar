@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/Card";
 import { CheckCircle2, CalendarDays, TrendingUp } from "lucide-react";
-import { useAuth } from "../context/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 
 /**
  * Página principal del Dashboard (Resumen)

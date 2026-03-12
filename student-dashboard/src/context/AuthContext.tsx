@@ -1,29 +1,7 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import type { User } from '@supabase/supabase-js';
-
-interface AuthContextType {
-    user: User | null;
-    loading: boolean;
-    userName: string;
-    avatarUrl: string | null;
-    signOut: () => Promise<void>;
-    refreshProfile: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType>({
-    user: null,
-    loading: true,
-    userName: 'Invitado',
-    avatarUrl: null,
-    signOut: async () => { },
-    refreshProfile: async () => { },
-});
-
-/**
- * Hook para usar el contexto de autenticación
- */
-export const useAuth = () => useContext(AuthContext);
+import { AuthContext } from './authContextDef';
 
 /**
  * Proveedor de autenticación que gestiona el estado del usuario de Supabase
