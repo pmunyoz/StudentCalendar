@@ -1,14 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "supabase";
 
-/**
- * Interfaz para la respuesta de la función.
- */
-interface ResponseData {
-  success: boolean;
-  data?: any;
-  error?: string;
-}
 
 /**
  * Manejador principal de la Edge Function 'manage-tasks'.
@@ -158,7 +150,8 @@ Deno.serve(async (req) => {
       },
     });
 
-  } catch (error) {
+  } catch (err: unknown) {
+    const error = err as Error;
     return new Response(JSON.stringify({ success: false, error: error.message }), {
       status: 400,
       headers: {

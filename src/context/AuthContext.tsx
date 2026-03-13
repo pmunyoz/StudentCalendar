@@ -13,9 +13,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const [userName, setUserName] = useState('Invitado');
     const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
-    const fetchProfile = async (userId: string) => {
+    const fetchProfile = async () => {
         try {
-            const data = await userService.getProfile(userId);
+            const data = await userService.getProfile();
 
             if (data) {
                 if (data.first_name) setUserName(data.first_name);
@@ -32,7 +32,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     const refreshProfile = async () => {
-        if (user) await fetchProfile(user.id);
+        if (user) await fetchProfile();
     };
 
     const signOut = async () => {
@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(currentUser);
             if (currentUser) {
                 setUserName(currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Usuario');
-                fetchProfile(currentUser.id);
+                fetchProfile();
             }
             setLoading(false);
         });
@@ -57,7 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setUser(currentUser);
             if (currentUser) {
                 setUserName(currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'Usuario');
-                fetchProfile(currentUser.id);
+                fetchProfile();
             } else {
                 setUserName('Invitado');
                 setAvatarUrl(null);

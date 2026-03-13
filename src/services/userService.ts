@@ -17,7 +17,7 @@ export const userService = {
      * Obtiene el perfil de un usuario invocando la Edge Function.
      * @param _userId ID del usuario (validado por JWT en el backend)
      */
-    async getProfile(_userId: string): Promise<Profile | null> {
+    async getProfile(): Promise<Profile | null> {
         const { data, error } = await supabase.functions.invoke('manage-profiles', {
             method: 'GET'
         });

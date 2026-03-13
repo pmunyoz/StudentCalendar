@@ -32,7 +32,7 @@ export const taskService = {
      * Obtiene todas las tareas del usuario invocando la Edge Function.
      * @param _userId ID del usuario (el backend lo valida mediante JWT)
      */
-    async getTasks(_userId: string): Promise<Task[]> {
+    async getTasks(): Promise<Task[]> {
         const { data, error } = await supabase.functions.invoke('manage-tasks', {
             method: 'GET'
         });
