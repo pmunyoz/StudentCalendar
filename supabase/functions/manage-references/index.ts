@@ -57,7 +57,8 @@ Deno.serve(async (req) => {
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
     });
 
-  } catch (error) {
+  } catch (err: unknown) {
+    const error = err as Error;
     return new Response(JSON.stringify({ success: false, error: error.message }), {
       status: 400,
       headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
