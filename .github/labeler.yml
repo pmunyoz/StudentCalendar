@@ -1,0 +1,24 @@
+# Configuración para el auto-etiquetado de Pull Requests
+# Este archivo define que etiquetas se aplicarán según los archivos modificados.
+
+frontend:
+  - changed-files:
+    - any-glob-to-any-file: 
+      - 'src/**/*'
+      - 'public/**/*'
+      - 'package.json'
+      - 'index.html'
+      - '*.config.js'
+      - '*.config.ts'
+
+supabase:
+  - changed-files:
+    - any-glob-to-any-file: 'supabase/**/*'
+
+ci:
+  - changed-files:
+    - any-glob-to-any-file: '.github/workflows/**/*'
+
+documentation:
+  - changed-files:
+    - any-glob-to-any-file: '**/*.md'

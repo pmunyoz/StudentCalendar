@@ -1,0 +1,72 @@
+# Este flujo de trabajo realiza comprobaciones automáticas en cada Pull Request
+# hacia la rama 'main' para asegurar la calidad del código, la integridad del build
+# y el cumplimiento de estándares de seguridad (OWASP).
+
+name: Pull Request Check
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Tarea que valida el frontend de React: instalación, linting y construcción.
+  frontend-validation:
+    name: Frontend (Lint & Build)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        # npm ci es preferible en CI por ser determinista y rápido
+        run: npm ci
+
+      - name: Run ESLint
+        # Verifica que el código cumpla con las reglas de estilo y buenas prácticas
+        run: npm run lint
+
+      - name: Run Build
+        # Realiza el type-check (tsc) y la generación del bundle (vite build)
+        run: npm run build
+
+  # Tarea dedicada a la seguridad mediante la auditoría de dependencias (OWASP).
+  security-audit:
+    name: Security Audit (OWASP)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: NPM Audit
+        # Falla si se encuentran vulnerabilidades de nivel 'high' o superior
+        run: npm audit --audit-level=high
+
+  # Tarea para validar la consistencia de las Edge Functions de Supabase.
+  supabase-validation:
+    name: Supabase Functions (Lint)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: v1.x
+
+      - name: Lint Functions
+        # Valida que las funciones de Supabase (Deno) cumplan las reglas configuradas
+        run: deno lint supabase/functions

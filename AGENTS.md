@@ -4,11 +4,11 @@ This file provides guidance to WARP (warp.dev) when working with code in this re
 
 ## Project Overview
 
-StudentDash is a student academic dashboard built with React 19, TypeScript, Vite 7, and Supabase as the backend (auth, database, storage). The UI is in Spanish. All application code lives inside the `student-dashboard/` subdirectory — the root is a mostly empty npm workspace wrapper.
+StudentDash is a student academic dashboard built with React 19, TypeScript, Vite 7, and Supabase as the backend (auth, database, storage). The UI is in Spanish. All application code lives directly in the root directory.
 
 ## Commands
 
-All commands must be run from the `student-dashboard/` directory.
+All commands must be run from the root directory.
 
 - **Install dependencies:** `npm install`
 - **Dev server:** `npm run dev` (Vite HMR at localhost:5173)
