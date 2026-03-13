@@ -9,7 +9,7 @@ export const subjectService = {
      * Obtiene todas las materias de un usuario invocando la Edge Function.
      * @param _userId ID del usuario (validado por JWT en el backend)
      */
-    async getSubjects(_userId: string): Promise<Subject[]> {
+    async getSubjects(): Promise<Subject[]> {
         const { data, error } = await supabase.functions.invoke('manage-subjects', {
             method: 'GET'
         });

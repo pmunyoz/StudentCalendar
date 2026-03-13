@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import type { Session, AuthChangeEvent } from "@supabase/supabase-js";
 
 /**
  * Servicio para gestionar la autenticación de usuarios.
@@ -32,9 +33,6 @@ export const authService = {
     },
 
     /**
-     * Obtiene el usuario actual si existe.
-     */
-    /**
      * Obtiene la sesión actual.
      */
     async getSession() {
@@ -44,7 +42,7 @@ export const authService = {
     /**
      * Escucha cambios en el estado de autenticación.
      */
-    onAuthStateChange(callback: (event: string, session: any) => void) {
+    onAuthStateChange(callback: (event: AuthChangeEvent, session: Session | null) => void) {
         return supabase.auth.onAuthStateChange(callback);
     }
 };

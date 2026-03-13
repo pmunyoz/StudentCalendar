@@ -14,7 +14,7 @@ export const referenceService = {
      * Obtiene todos los exámenes y ejercicios de un usuario invocando la Edge Function.
      * @param _userId ID del usuario (validado por JWT en el backend)
      */
-    async getMentionables(_userId: string): Promise<Mentionable[]> {
+    async getMentionables(): Promise<Mentionable[]> {
         const { data, error } = await supabase.functions.invoke('manage-references', {
             method: 'GET'
         });

@@ -42,14 +42,14 @@ export default function TasksPage() {
             setLoading(true);
 
             // 1. Fetch Subjects
-            let subData = await subjectService.getSubjects(user.id);
+            let subData = await subjectService.getSubjects();
             if (subData.length === 0) {
                 subData = await subjectService.createDefaultSubjects(user.id);
             }
             setSubjects(subData);
 
             // 2. Fetch Mentions (Exams & Exercises)
-            const combined = await referenceService.getMentionables(user.id);
+            const combined = await referenceService.getMentionables();
             setMentionables(combined);
 
             // Construir mapa de títulos para resolver linked_title
@@ -57,7 +57,7 @@ export default function TasksPage() {
             combined.forEach(m => titleMap.set(m.id, m.title));
 
             // 3. Fetch Tasks
-            const taskData = await taskService.getTasks(user.id);
+            const taskData = await taskService.getTasks();
 
             // 4. Resolver linked_title en memoria
             const tasksWithTitles: Task[] = taskData.map((task) => ({

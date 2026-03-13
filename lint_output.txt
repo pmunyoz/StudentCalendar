@@ -1,0 +1,33 @@
+
+C:\Users\pascu\desarrollo\StudentCalendar\src\services\authService.ts
+  47:58  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\pascu\desarrollo\StudentCalendar\src\services\referenceService.ts
+  17:27  error  '_userId' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\pascu\desarrollo\StudentCalendar\src\services\subjectService.ts
+  12:23  error  '_userId' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\pascu\desarrollo\StudentCalendar\src\services\taskService.ts
+  35:20  error  '_userId' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\pascu\desarrollo\StudentCalendar\src\services\userService.ts
+  20:22  error  '_userId' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\pascu\desarrollo\StudentCalendar\student-dashboard\src\services\userService.ts
+  20:22  error  '_userId' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\pascu\desarrollo\StudentCalendar\supabase\functions\manage-profiles\index.ts
+  7:11  error  'ResponseData' is defined but never used  @typescript-eslint/no-unused-vars
+  9:10  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\pascu\desarrollo\StudentCalendar\supabase\functions\manage-subjects\index.ts
+  7:11  error  'ResponseData' is defined but never used  @typescript-eslint/no-unused-vars
+  9:10  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\pascu\desarrollo\StudentCalendar\supabase\functions\manage-tasks\index.ts
+  7:11  error  'ResponseData' is defined but never used  @typescript-eslint/no-unused-vars
+  9:10  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+Ô£û 12 problems (12 errors, 0 warnings)
+

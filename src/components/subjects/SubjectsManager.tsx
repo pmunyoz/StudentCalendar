@@ -52,7 +52,7 @@ export default function SubjectsManager() {
         if (!user) return;
         try {
             setLoading(true);
-            const data = await subjectService.getSubjects(user.id);
+            const data = await subjectService.getSubjects();
             setSubjects(data);
         } catch (error) {
             console.error("Error fetching subjects:", error);

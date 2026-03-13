@@ -31,10 +31,9 @@ export default function Settings() {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const fetchProfile = useCallback(async () => {
-        if (!user) return;
         try {
             setLoading(true);
-            const data = await userService.getProfile(user.id);
+            const data = await userService.getProfile();
 
             if (data) {
                 setFirstName(data.first_name || "");
@@ -51,7 +50,7 @@ export default function Settings() {
         } finally {
             setLoading(false);
         }
-    }, [user]);
+    }, []);
 
     useEffect(() => {
         if (user) {

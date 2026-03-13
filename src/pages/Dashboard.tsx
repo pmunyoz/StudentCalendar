@@ -58,7 +58,7 @@ export default function DashboardPage() {
         if (!user) return;
         try {
             setLoading(true);
-            const data = await taskService.getTasks(user.id);
+            const data = await taskService.getTasks();
             setTasks(data);
         } catch (error) {
             console.error("Error fetching dashboard data:", error);
